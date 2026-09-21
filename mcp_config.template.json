@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "gti-agentic": {
+      "serverUrl": "https://www.virustotal.com/api/v3/agentspace/mcp/",
+      "headers": {
+        "x-apikey": "{{ VT_APIKEY }}"
+      }
+    }
+  }
+}
