@@ -69,6 +69,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Print config without writing to disk")
     args = parser.parse_args()
 
+    if args.key:
+        print("⚠️  Security Warning: Passing secrets via CLI arguments exposes them in the system process table. Prefer setting VT_APIKEY or using .env.", file=sys.stderr)
+
     api_key = resolve_api_key(args.key)
     if not api_key:
         print("GTI API key not found in environment or .env.")
@@ -123,8 +126,13 @@ def main():
         return
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(target_path, "w", encoding="utf-8") as f:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    with os.fdopen(os.open(target_path, flags, 0o600), "w", encoding="utf-8") as f:
         f.write(formatted_json + "\n")
+    try:
+        os.chmod(target_path, 0o600)
+    except OSError:
+        pass
 
     print(f"✅ Successfully configured 'gti-agentic' in {target_path}")
     print(f"   Server URL: {args.server_url}")

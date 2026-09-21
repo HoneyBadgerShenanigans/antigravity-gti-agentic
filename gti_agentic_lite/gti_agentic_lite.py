@@ -33,12 +33,26 @@ import json
 import argparse
 import time
 import getpass
+import re
+from urllib.parse import quote
 import requests
 
 BASE_URL = "https://www.virustotal.com/api/v3/agentspace/sessions"
-
+DEFAULT_TIMEOUT = (10.0, 60.0)
 
 VALID_COMMANDS = {"list", "get", "get-token", "create-from-token", "create", "post", "update", "delete"}
+SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
+def sanitize_session_id(session_id):
+    """Validate and sanitize session ID to prevent path traversal and injection."""
+    if not session_id or not isinstance(session_id, str):
+        raise ValueError("Session ID cannot be empty.")
+    cleaned = session_id.strip()
+    if not SESSION_ID_PATTERN.match(cleaned):
+        raise ValueError(f"Security Error: Invalid session ID '{session_id}'. Must be alphanumeric, dashes, or underscores.")
+    return quote(cleaned, safe="")
+
 
 
 def get_api_key(key_override=None):
@@ -206,7 +220,7 @@ def interactive_create_new_session(headers):
     open_files = []
     try:
         files_payload, open_files = prepare_files_payload(message, file_paths)
-        resp = requests.post(BASE_URL, headers=headers, files=files_payload)
+        resp = requests.post(BASE_URL, headers=headers, files=files_payload, timeout=DEFAULT_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         print("\nSession created successfully!")
@@ -222,7 +236,8 @@ def interactive_create_new_session(headers):
 
 def interactive_continue_session(session_id, headers):
     """Interactive flow to continue an existing session by sending a new message."""
-    print(f"\n--- [2] CONTINUE SESSION [{session_id}] ---")
+    clean_id = sanitize_session_id(session_id)
+    print(f"\n--- [2] CONTINUE SESSION [{clean_id}] ---")
     message = input("Enter your message: ").strip()
     if not message:
         print("Message cannot be empty. Operation cancelled.")
@@ -231,12 +246,12 @@ def interactive_continue_session(session_id, headers):
     files_input = input("Attach file path(s) (optional, comma-separated, or press Enter to skip): ").strip()
     file_paths = [x for x in files_input.split(",") if x.strip()] if files_input else []
     
-    url = f"{BASE_URL}/{session_id}"
-    print(f"\nSending message to session {session_id}... (waiting for response)")
+    url = f"{BASE_URL}/{clean_id}"
+    print(f"\nSending message to session {clean_id}... (waiting for response)")
     open_files = []
     try:
         files_payload, open_files = prepare_files_payload(message, file_paths)
-        resp = requests.post(url, headers=headers, files=files_payload)
+        resp = requests.post(url, headers=headers, files=files_payload, timeout=DEFAULT_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         print("\nMessage delivered and response received!")
@@ -252,14 +267,15 @@ def interactive_continue_session(session_id, headers):
 
 def interactive_delete_session(session_id, headers):
     """Interactive flow to delete a session."""
-    print(f"\n--- [3] DELETE SESSION [{session_id}] ---")
-    confirm = input(f"Are you sure you want to permanently delete session {session_id}? (y/N): ").strip().lower()
+    clean_id = sanitize_session_id(session_id)
+    print(f"\n--- [3] DELETE SESSION [{clean_id}] ---")
+    confirm = input(f"Are you sure you want to permanently delete session {clean_id}? (y/N): ").strip().lower()
     if confirm == 'y':
-        url = f"{BASE_URL}/{session_id}"
+        url = f"{BASE_URL}/{clean_id}"
         try:
-            resp = requests.delete(url, headers=headers)
+            resp = requests.delete(url, headers=headers, timeout=DEFAULT_TIMEOUT)
             resp.raise_for_status()
-            print(f"\nSession {session_id} deleted successfully.")
+            print(f"\nSession {clean_id} deleted successfully.")
             return True
         except Exception as e:
             print(f"Error deleting session: {e}", file=sys.stderr)
@@ -275,7 +291,7 @@ def run_interactive_session_menu(headers, limit=5):
         url = BASE_URL
         params = {"limit": limit}
         try:
-            resp = requests.get(url, headers=headers, params=params)
+            resp = requests.get(url, headers=headers, params=params, timeout=DEFAULT_TIMEOUT)
             resp.raise_for_status()
             res_data = resp.json()
         except Exception as e:
@@ -325,11 +341,11 @@ def run_interactive_session_menu(headers, limit=5):
                 choice_idx = int(choice) - 1
                 if 0 <= choice_idx < len(sessions_list):
                     selected_sess = sessions_list[choice_idx]
-                    selected_id = selected_sess.get("id")
+                    selected_id = sanitize_session_id(selected_sess.get("id", ""))
                     
                     # Fetch and show details
                     detail_url = f"{BASE_URL}/{selected_id}"
-                    detail_resp = requests.get(detail_url, headers=headers)
+                    detail_resp = requests.get(detail_url, headers=headers, timeout=DEFAULT_TIMEOUT)
                     detail_resp.raise_for_status()
                     print_session_details(detail_resp.json())
 
@@ -348,7 +364,7 @@ def run_interactive_session_menu(headers, limit=5):
                             if interactive_delete_session(selected_id, headers):
                                 break # session deleted, back to main list
                         elif sub_choice == 't':
-                            tok_resp = requests.get(f"{BASE_URL}/{selected_id}/token", headers=headers)
+                            tok_resp = requests.get(f"{BASE_URL}/{selected_id}/token", headers=headers, timeout=DEFAULT_TIMEOUT)
                             tok_resp.raise_for_status()
                             print("\nSHARE TOKEN RESPONSE:")
                             print_output(tok_resp.json())
@@ -432,6 +448,9 @@ def main():
         args.command = args.key
         args.key = True
 
+    if args.key and isinstance(args.key, str) and args.key not in VALID_COMMANDS:
+        print("⚠️  Security Warning: Passing API keys via CLI arguments exposes secrets in the process table. Prefer setting VT_APIKEY or using .env.", file=sys.stderr)
+
     api_key = get_api_key(args.key)
     if not api_key:
         print("ERROR: API Key is required. Provide via --key or VT_APIKEY environment variable.", file=sys.stderr)
@@ -472,7 +491,7 @@ def main():
             if args.debug:
                 print(f"DEBUG: {method} {url} Params: {params}", file=sys.stderr)
 
-            resp = requests.get(url, headers=headers, params=params)
+            resp = requests.get(url, headers=headers, params=params, timeout=DEFAULT_TIMEOUT)
             resp.raise_for_status()
             res_data = resp.json()
 
@@ -502,11 +521,13 @@ def main():
             return
 
         elif args.command == "get":
-            url = f"{BASE_URL}/{getattr(args, 'session_id', '')}"
+            clean_id = sanitize_session_id(getattr(args, 'session_id', ''))
+            url = f"{BASE_URL}/{clean_id}"
             method = "GET"
 
         elif args.command == "get-token":
-            url = f"{BASE_URL}/{getattr(args, 'session_id', '')}/token"
+            clean_id = sanitize_session_id(getattr(args, 'session_id', ''))
+            url = f"{BASE_URL}/{clean_id}/token"
             method = "GET"
 
         elif args.command == "create-from-token":
@@ -518,38 +539,25 @@ def main():
         elif args.command == "create":
             url = BASE_URL
             method = "POST"
-            files_payload = [('message', (None, getattr(args, 'message', '')))]
-            if getattr(args, 'files', None):
-                for fp in args.files:
-                    if not os.path.exists(fp):
-                        print(f"ERROR: File not found: {fp}", file=sys.stderr)
-                        sys.exit(1)
-                    f_obj = open(fp, "rb")
-                    open_files.append(f_obj)
-                    files_payload.append(('files', (os.path.basename(fp), f_obj)))
+            files_payload, open_files = prepare_files_payload(getattr(args, 'message', ''), getattr(args, 'files', None))
 
         elif args.command == "post":
-            url = f"{BASE_URL}/{getattr(args, 'session_id', '')}"
+            clean_id = sanitize_session_id(getattr(args, 'session_id', ''))
+            url = f"{BASE_URL}/{clean_id}"
             method = "POST"
-            files_payload = [('message', (None, getattr(args, 'message', '')))]
-            if getattr(args, 'files', None):
-                for fp in args.files:
-                    if not os.path.exists(fp):
-                        print(f"ERROR: File not found: {fp}", file=sys.stderr)
-                        sys.exit(1)
-                    f_obj = open(fp, "rb")
-                    open_files.append(f_obj)
-                    files_payload.append(('files', (os.path.basename(fp), f_obj)))
+            files_payload, open_files = prepare_files_payload(getattr(args, 'message', ''), getattr(args, 'files', None))
 
         elif args.command == "update":
-            url = f"{BASE_URL}/{getattr(args, 'session_id', '')}"
+            clean_id = sanitize_session_id(getattr(args, 'session_id', ''))
+            url = f"{BASE_URL}/{clean_id}"
             method = "PATCH"
             headers["Content-Type"] = "application/json"
             seen_val = False if getattr(args, 'unseen', False) else True
             json_data = {"data": {"seen": seen_val}}
 
         elif args.command == "delete":
-            url = f"{BASE_URL}/{getattr(args, 'session_id', '')}"
+            clean_id = sanitize_session_id(getattr(args, 'session_id', ''))
+            url = f"{BASE_URL}/{clean_id}"
             method = "DELETE"
 
         if args.debug:
@@ -560,16 +568,16 @@ def main():
                 print(f"DEBUG: Payload: {json_data}", file=sys.stderr)
 
         if method == "GET":
-            resp = requests.get(url, headers=headers, params=params)
+            resp = requests.get(url, headers=headers, params=params, timeout=DEFAULT_TIMEOUT)
         elif method == "POST":
             if files_payload is not None:
-                resp = requests.post(url, headers=headers, files=files_payload)
+                resp = requests.post(url, headers=headers, files=files_payload, timeout=DEFAULT_TIMEOUT)
             else:
-                resp = requests.post(url, headers=headers, json=json_data)
+                resp = requests.post(url, headers=headers, json=json_data, timeout=DEFAULT_TIMEOUT)
         elif method == "PATCH":
-            resp = requests.patch(url, headers=headers, json=json_data)
+            resp = requests.patch(url, headers=headers, json=json_data, timeout=DEFAULT_TIMEOUT)
         elif method == "DELETE":
-            resp = requests.delete(url, headers=headers)
+            resp = requests.delete(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
         resp.raise_for_status()
 
