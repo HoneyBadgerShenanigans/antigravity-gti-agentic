@@ -138,8 +138,11 @@ python3 gti_agentic_lite/gti_agentic_lite.py get-token <session_id>
 ├── setup_mcp.py                                  # Helper script to configure Antigravity MCP
 ├── .agents/
 │   └── skills/
-│       └── gti-agentic-investigator/
-│           └── SKILL.md                          # Antigravity skill for GTI investigations
+│       ├── gti-agentic-investigator/             # Master capability orchestrator (43 GTI skills)
+│       ├── gti-dark-web-hunter/                  # Deep & dark web (DDW), forums, messaging, leaks
+│       ├── gti-detection-rule-generator/         # YARA, YARA-L 2.0 (SecOps), SIGMA, KQL rules
+│       ├── gti-malware-reverse-engineer/         # Binary reversing, PowerShell emulation, APK, .NET
+│       └── gti-threat-actor-profiler/            # Actor profiles, campaigns, ransomware, landscapes
 ├── gti_agentic_lite/                             # Standalone Python CLI & TUI
 │   ├── gti_agentic_lite.py                       # CLI script supporting all 8 session endpoints
 │   ├── requirements.txt                          # Minimal dependencies (requests)
