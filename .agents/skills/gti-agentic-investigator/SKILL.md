@@ -44,8 +44,10 @@ When the `gti-agentic` MCP server is configured, the following tools are availab
 
 ### 1. New Indicator or Threat Investigation
 1. Formulate a clear, specific query describing the IoC or threat entity:
+   - *"Show me the 5 most recent files submitted to VirusTotal with more than 50 detections."*
+   - *"Analyze the file hash `1e806ce2fe77671b20c433f6f2088604d7e6addb6dbbb707e7f8bd86c7f573fb` with VirusTotal MCP and summarize detections and behavior."*
+   - *"Get the domain report for `example-malicious-domain.com` using the GTI MCP server."*
    - *"What is the threat profile, attribution, and maliciousness of IP `198.51.100.23`?"*
-   - *"Provide an analysis of SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`."*
 2. Call `ask_gti_agent(query=...)`.
 3. Note the returned `session_id`.
 4. Synthesize the GTI Agent's response for the user, highlighting:

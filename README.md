@@ -89,10 +89,18 @@ pip install -r gti_agentic_lite/requirements.txt
 ## Usage
 
 ### Mode A: In Antigravity (Interactive Agentic Pair Chat)
-You can prompt Antigravity directly in the chat:
-- *"Ask GTI agent about the latest infrastructure and campaigns associated with threat actor APT29."*
-- *"Investigate domain `update-check-service.com` with GTI and check if it's tied to any known C2 profiles."*
-- *"Pivot on the IP address returned in that session and ask GTI for other observed certificates or communicating files."* (Antigravity will automatically use `continue_chat` with the session ID).
+You can prompt Antigravity directly in the chat with natural language security investigations:
+
+- **Threat Hunting & File Queries**:
+  - *"Show me the 5 most recent files submitted to VirusTotal with more than 50 detections."*
+  - *"Analyze the file hash `1e806ce2fe77671b20c433f6f2088604d7e6addb6dbbb707e7f8bd86c7f573fb` with VirusTotal MCP and summarize detections and behavior."*
+- **Domain & Infrastructure Intelligence**:
+  - *"Get the domain report for `example-malicious-domain.com` using the GTI MCP server."*
+  - *"Investigate domain `update-check-service.com` with GTI and check if it's tied to any known C2 profiles."*
+- **Threat Actor & Campaign Deep Dives**:
+  - *"Ask GTI agent about the latest infrastructure and campaigns associated with threat actor APT29."*
+  - *"Pivot on the IP address returned in that session and ask GTI for other observed certificates or communicating files."* (Antigravity will automatically use `continue_chat` with the session ID).
+
 
 ### Mode B: Standalone Terminal Manager (`gti_agentic_lite`)
 Launch the interactive terminal session manager:
